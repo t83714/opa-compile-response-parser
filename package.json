@@ -1,0 +1,74 @@
+{
+  "name": "opa-compile-response-parser",
+  "version": "1.0.0",
+  "private": true,
+  "description": "An Open Policy Agent Compile Response Parser",
+  "main": "dist/index.cjs.js",
+  "module": "dist/index.esm.js",
+  "unpkg": "dist/index.min.umd.js",
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "mocha -r ts-node/register -r tsconfig-paths/register \"test/**/*.spec.ts\"",
+    "build": "rollup -c -m",
+    "build-doc": "rimraf docs && typedoc --plugin typedoc-plugin-markdown --mode file --out docs",
+    "clean": "rimraf dist",
+    "prebuild": "npm run clean",
+    "prettier": "prettier --write 'src/*.js' 'src/*.ts'",
+    "eslint": "eslint src/",
+    "prepare": "npm run build",
+    "release:patch": "npm version patch && npm publish && git push --follow-tags",
+    "release:minor": "npm version minor && npm publish && git push --follow-tags",
+    "release:major": "npm version major && npm publish && git push --follow-tags"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/t83714/opa-compile-response-parser.git"
+  },
+  "keywords": [
+    "OPA",
+    "Rego",
+    "AST",
+    "Paser"
+  ],
+  "author": "Jacky Jiang",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/t83714/opa-compile-response-parser/issues"
+  },
+  "homepage": "https://github.com/t83714/opa-compile-response-parser#readme",
+  "dependencies": {
+    "lodash-es": "^4.17.15"
+  },
+  "devDependencies": {
+    "@types/chai": "^4.1.7",
+    "@types/lodash-es": "^4.17.3",
+    "@types/mocha": "^5.2.7",
+    "chai": "^4.2.0",
+    "mocha": "^6.1.4",
+    "rimraf": "^2.6.3",
+    "rollup": "^1.16.2",
+    "rollup-plugin-commonjs": "^10.0.0",
+    "rollup-plugin-node-resolve": "^5.1.0",
+    "rollup-plugin-terser": "^5.0.0",
+    "rollup-plugin-typescript2": "^0.22.0",
+    "typedoc": "^0.14.2",
+    "typedoc-plugin-markdown": "^2.0.11",
+    "typescript": "^3.5.3"
+  },
+  "typings": "./dist/index.d.ts",
+  "npmName": "opa-ast-parser",
+  "npmFileMap": [
+    {
+      "basePath": "/dist/",
+      "files": [
+        "*.js",
+        "*.ts",
+        "*.mjs",
+        "*.map"
+      ]
+    }
+  ]
+}
