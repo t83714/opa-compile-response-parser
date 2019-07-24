@@ -1,5 +1,11 @@
 # opa-compile-response-parser
 
+[![GitHub stars](https://img.shields.io/github/stars/t83714/opa-compile-response-parser.svg?style=social&label=Star&maxAge=2592000)](https://github.com/t83714/opa-compile-response-parser)
+[![npm version](https://img.shields.io/npm/v/opa-compile-response-parser.svg)](https://www.npmjs.com/package/opa-compile-response-parser)
+[![unpkg](https://img.shields.io/badge/unpkg-latest-blue.svg)](https://unpkg.com/opa-compile-response-parser)
+[![npm bundle size (minified + gzip)](https://img.shields.io/bundlephobia/minzip/opa-compile-response-parser.svg)](https://bundlephobia.com/result?p=opa-compile-response-parser)
+[![Build Status](https://travis-ci.org/t83714/opa-compile-response-parser.svg?branch=master)](https://travis-ci.org/t83714/opa-compile-response-parser)
+
 An Open Policy Agent Compile Response Parser
 
 [Open Policy Agent](https://www.openpolicyagent.org/) provides a [compile API](https://www.openpolicyagent.org/docs/latest/rest-api/#compile-api) that allows you partially evaluate your policy. 
