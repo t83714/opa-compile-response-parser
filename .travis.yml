@@ -1,0 +1,31 @@
+dist: trusty
+sudo: false
+matrix:
+  include:
+    - language: node_js
+      node_js: "8"
+      services:
+        - postgresql
+        - docker
+      cache:
+        directories:
+          - .yarn
+      before_install:
+        - docker info
+        - docker-compose --version
+        - yarn config set cache-folder .yarn
+      script:
+        - yarn start-es
+        - yarn start-opa
+        - yarn build
+        - yarn eslint
+        - yarn test
+        - yarn stop-es
+        - yarn stop-opa
+      env:
+        global:
+          - CI=true
+          - POSTGRES_HOST=localhost
+          - POSTGRES_DB=postgres
+          - POSTGRES_USER=postgres
+          - POSTGRES_PASSWORD=""

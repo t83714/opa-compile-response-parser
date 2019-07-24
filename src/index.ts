@@ -1,5 +1,5 @@
 import * as _ from "lodash-es";
-export type RegoValue = string | boolean | number | Array<any> | Object;
+export type RegoValue = string | boolean | number | any[] | Record<string, any>;
 
 export interface RegoRuleOptions {
     name: string;

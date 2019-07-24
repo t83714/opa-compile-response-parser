@@ -1,0 +1,33 @@
+{
+    "parser": "@typescript-eslint/parser",
+    "extends": [
+        "plugin:@typescript-eslint/recommended",
+        "prettier/@typescript-eslint",
+        "plugin:prettier/recommended"
+    ],
+    "parserOptions": {
+        "ecmaVersion": 2018,
+        "sourceType": "module"
+    },
+    "rules": {
+        "prettier/prettier": "error",
+        "no-use-before-define": [
+            "error",
+            { "classes": false, "functions": false }
+        ],
+        "@typescript-eslint/no-use-before-define": [
+            "error",
+            { "classes": false, "functions": false }
+        ],
+        "@typescript-eslint/explicit-member-accessibility": [
+            "error",
+            {
+                "accessibility": "no-public",
+                "overrides": {
+                    "properties": "explicit"
+                }
+            }
+        ],
+        "@typescript-eslint/explicit-function-return-type": ["off"]
+    }
+}

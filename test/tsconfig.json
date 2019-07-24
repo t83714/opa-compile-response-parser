@@ -1,0 +1,18 @@
+{
+    "extends": "../tsconfig.json",
+    "compilerOptions": {
+        "declaration": true,
+        "declarationDir": "./dist",
+        "module": "commonjs",
+        "noImplicitAny": true,
+        "importHelpers": true,
+        "moduleResolution": "node",
+        "outDir": "./dist",
+        "target": "es5",
+        "baseUrl": ".",
+        "paths": {
+            "OpaCompileResponseParser": ["../src"],
+            "lodash-es": ["../node_modules/lodash"]
+        }
+    }
+}
