@@ -1121,7 +1121,7 @@ export default class OpaCompileResponseParser {
      * @returns {CompleteRuleResult}
      * @memberof OpaCompileResponseParser
      */
-    evaluateRule(fullName: string = "query.default"): CompleteRuleResult {
+    evaluateRule(fullName: string): CompleteRuleResult {
         let rules = this.rules.filter(r => r.fullName === fullName);
         if (!rules.length) {
             // --- no any rule matched; often (depends on your policy) it means a overall non-matched (false)
@@ -1158,15 +1158,23 @@ export default class OpaCompileResponseParser {
     }
 
     /**
+     * Evaluate residual rules of compiled query
+     *
+     * @returns {CompleteRuleResult}
+     * @memberof OpaCompileResponseParser
+     */
+    evaluate(): CompleteRuleResult {
+        return this.evaluateRule("query.default");
+    }
+
+    /**
      * evaluate a rule and returned as human readable string
      *
      * @param {string} fullName
      * @returns {string}
      * @memberof OpaCompileResponseParser
      */
-    evaluateRuleAsHumanReadableString(
-        fullName: string = "query.default"
-    ): string {
+    evaluateRuleAsHumanReadableString(fullName: string): string {
         const result = this.evaluateRule(fullName);
         if (result === null) return "null";
         if (result.isCompleteEvaluated) {
@@ -1177,6 +1185,16 @@ export default class OpaCompileResponseParser {
             parts = parts.map(p => `( ${p} )`);
         }
         return parts.join("\nOR\n");
+    }
+
+    /**
+     * Evaluate residual rules of compiled query as human readable string
+     *
+     * @returns {string}
+     * @memberof OpaCompileResponseParser
+     */
+    evaluateAsHumanReadableString() {
+        return this.evaluateRuleAsHumanReadableString("query.default");
     }
 
     /**

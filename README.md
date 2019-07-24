@@ -35,4 +35,14 @@ const result = parser.evaluate();
 console.log(parser.evaluateAsHumanReadableString());
 ```
 
-API document: https://t83714.github.io/opa-compile-response-parser/
+### Todo
+
+- replace rule reference with inline rules
+
+### Compatibility
+
+Work with Open Policy Agent version 0.11.0 or higher.
+
+### API document
+
+https://t83714.github.io/opa-compile-response-parser/

@@ -33,7 +33,7 @@ export default async function getUserDocuments(
     const parser = new OpaCompileResponseParser();
     parser.parse(res);
 
-    const ruleResult = parser.evaluateRule();
+    const ruleResult = parser.evaluate();
 
     const translator = new SimpleOpaESTranslator(["input.document"]);
     const query = translator.parse(ruleResult);
