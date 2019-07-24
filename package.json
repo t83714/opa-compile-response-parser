@@ -37,7 +37,9 @@
     "OPA",
     "Rego",
     "AST",
-    "Paser"
+    "Compile",
+    "Partial Eval",
+    "Parser"
   ],
   "author": "Jacky Jiang",
   "license": "Apache-2.0",
