@@ -2,7 +2,7 @@ import * as pg from "pg";
 import * as es from "@elastic/elasticsearch";
 import * as _ from "lodash";
 import * as request from "request-promise-native";
-import OpaCompileResponseParser from "OpaCompileResponseParser";
+import OpaCompileResponseParser from "opa-compile-response-parser";
 import SimpleOpaESTranslator from "./SimpleOpaESTranslator";
 import createUserSessionData from "./createUserSessionData";
 

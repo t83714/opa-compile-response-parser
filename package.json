@@ -48,7 +48,7 @@
   },
   "homepage": "https://github.com/t83714/opa-compile-response-parser#readme",
   "dependencies": {
-    "lodash-es": "^4.17.15"
+    "lodash": "^4.17.15"
   },
   "devDependencies": {
     "@elastic/elasticsearch": "^7.2.0",
@@ -56,7 +56,6 @@
     "@types/chai-as-promised": "^7.1.0",
     "@types/fs-extra": "^8.0.0",
     "@types/lodash": "^4.14.136",
-    "@types/lodash-es": "^4.17.3",
     "@types/mocha": "^5.2.7",
     "@types/pg": "^7.4.14",
     "@types/recursive-readdir": "^2.2.0",
@@ -70,7 +69,6 @@
     "eslint-config-prettier": "^6.0.0",
     "eslint-plugin-prettier": "^3.1.0",
     "fs-extra": "^8.1.0",
-    "lodash": "^4.17.15",
     "mocha": "^6.1.4",
     "pg": "^7.11.0",
     "prettier": "^1.18.2",

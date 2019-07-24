@@ -4,7 +4,7 @@
  */
 
 import * as _ from "lodash";
-import { CompleteRuleResult } from "OpaCompileResponseParser";
+import { CompleteRuleResult } from "opa-compile-response-parser";
 
 /**
  * This is a generic, simple OPA result to SQL translator

@@ -1,4 +1,4 @@
-import * as _ from "lodash-es";
+import * as _ from "lodash";
 export type RegoValue = string | boolean | number | any[] | Record<string, any>;
 
 export interface RegoRuleOptions {

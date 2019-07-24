@@ -20,7 +20,7 @@ Moreover, it further processes the AST to:
 
 Example:
 ```typescript
-import OpaCompileResponseParser from "OpaCompileResponseParser";
+import OpaCompileResponseParser from "opa-compile-response-parser";
 
 const parser = new OpaCompileResponseParser();
 parser.parse(jsonResponse);

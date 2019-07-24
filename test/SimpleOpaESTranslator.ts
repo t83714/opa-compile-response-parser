@@ -4,7 +4,7 @@
  */
 
 import * as _ from "lodash";
-import { CompleteRuleResult } from "OpaCompileResponseParser";
+import { CompleteRuleResult } from "opa-compile-response-parser";
 
 const rangeQuery = (ref: string, opereator: string, value: number | string) => {
     let esOpt: string;

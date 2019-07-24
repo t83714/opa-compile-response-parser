@@ -19,15 +19,7 @@ const extensions = [".js"];
 const deps = Object.keys(pkg.dependencies || {});
 const peerDeps = Object.keys(pkg.peerDependencies || {});
 
-const createConfig = ({
-    input,
-    output,
-    external,
-    env,
-    min = false,
-    useBabel = false,
-    ...props
-}) => {
+const createConfig = ({ input, output, external, min = false, ...props }) => {
     return {
         input: input ? input : "src/index.ts",
         output: ensureArray(output).map(format =>
@@ -53,7 +45,17 @@ const createConfig = ({
                 extensions
             }),
             commonjs({
-                include: "node_modules/**"
+                include: "node_modules/**",
+                namedExports: {
+                    "node_modules/lodash/lodash.js": [
+                        "isString",
+                        "isBoolean",
+                        "isUndefined",
+                        "isArray",
+                        "isNumber",
+                        "isEmpty"
+                    ]
+                }
             }),
             min &&
                 terser({
@@ -91,7 +93,6 @@ export default [
             file: "dist/index.min.mjs"
         },
         external: "peers",
-        env: "production",
         min: true
     }),
     // --- UMD Development
@@ -100,8 +101,7 @@ export default [
             file: "dist/index.umd.js",
             format: "umd"
         },
-        external: "peers",
-        env: "development"
+        external: "peers"
     }),
     // --- UMD Production
     createConfig({
@@ -110,7 +110,6 @@ export default [
             format: "umd"
         },
         external: "peers",
-        env: "production",
         min: true
     })
 ];
