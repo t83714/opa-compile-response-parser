@@ -1,4 +1,10 @@
-import * as _ from "lodash";
+import isString from "lodash-es/isString";
+import isBoolean from "lodash-es/isBoolean";
+import isUndefined from "lodash-es/isUndefined";
+import isArray from "lodash-es/isArray";
+import isEmpty from "lodash-es/isEmpty";
+import isNumber from "lodash-es/isNumber";
+
 export type RegoValue = string | boolean | number | any[] | Record<string, any>;
 
 export interface RegoRuleOptions {
@@ -98,16 +104,16 @@ export class RegoRule {
 
     constructor(options: RegoRuleOptions) {
         this.isCompleteEvaluated = false;
-        this.name = _.isString(options.name) ? options.name : "";
-        this.fullName = _.isString(options.fullName) ? options.fullName : "";
-        this.isDefault = _.isBoolean(options.isDefault)
+        this.name = isString(options.name) ? options.name : "";
+        this.fullName = isString(options.fullName) ? options.fullName : "";
+        this.isDefault = isBoolean(options.isDefault)
             ? options.isDefault
             : false;
-        this.value = _.isUndefined(options.value) ? true : options.value;
-        this.expressions = _.isArray(options.expressions)
+        this.value = isUndefined(options.value) ? true : options.value;
+        this.expressions = isArray(options.expressions)
             ? options.expressions
             : [];
-        this.isCompleteEvaluated = _.isBoolean(options.isCompleteEvaluated)
+        this.isCompleteEvaluated = isBoolean(options.isCompleteEvaluated)
             ? options.isCompleteEvaluated
             : false;
         this.parser = options.parser;
@@ -151,7 +157,7 @@ export class RegoRule {
         const falseExpression = this.expressions.find(
             exp => exp.isMatch() === false
         );
-        if (!_.isUndefined(falseExpression)) {
+        if (!isUndefined(falseExpression)) {
             // --- rule expressions are always evaluated in the context of AND
             // --- any false expression will make the rule not match
             this.isCompleteEvaluated = true;
@@ -216,7 +222,7 @@ export class RegoRule {
         const ruleFullName = [packageName, ruleName].join(".");
         const ruleIsDefault = r.default === true;
         const ruleValue =
-            r.head && r.head.value && !_.isUndefined(r.head.value.value)
+            r.head && r.head.value && !isUndefined(r.head.value.value)
                 ? r.head.value.value
                 : true;
         const ruleOptions: RegoRuleOptions = {
@@ -239,7 +245,7 @@ export class RegoRule {
         data: any,
         parser: OpaCompileResponseParser
     ): RegoExp[] {
-        if (!_.isArray(data) || !data.length) {
+        if (!isArray(data) || !data.length) {
             throw new Error(`Encountered empty rule body.`);
         }
         return data.map(expData => RegoExp.parseFromData(expData, parser));
@@ -448,7 +454,7 @@ export class RegoTerm {
             } else {
                 const fullName = this.fullRefString();
                 const result = this.parser.completeRuleResults[fullName];
-                if (_.isUndefined(result)) return undefined;
+                if (isUndefined(result)) return undefined;
                 return result.value;
             }
         }
@@ -562,7 +568,7 @@ export class RegoExp {
             const parts = [];
             if (this.isNegated) parts.push("NOT");
 
-            if (!_.isUndefined(value)) {
+            if (!isUndefined(value)) {
                 parts.push(value2String(value));
             } else {
                 parts.push(this.terms[0].fullRefString());
@@ -604,17 +610,17 @@ export class RegoExp {
             // --- undefined is a common value in Rego similar to false
             // --- we set to false here to tell the difference between
             // --- real undefined (not full resolved) and undefined value
-            if (_.isUndefined(this.value)) return false;
+            if (isUndefined(this.value)) return false;
             else return this.value;
         }
     }
 
     isMatch() {
         const value = this.getValue();
-        if (_.isUndefined(value)) {
+        if (isUndefined(value)) {
             return undefined;
         } else {
-            if (value === false || _.isUndefined(value)) return false;
+            if (value === false || isUndefined(value)) return false;
             // --- 0 is a match
             return true;
         }
@@ -640,7 +646,7 @@ export class RegoExp {
                 operator = t.asOperator();
             } else {
                 const value = t.getValue();
-                if (!_.isUndefined(value)) {
+                if (!isUndefined(value)) {
                     operands.push(
                         new RegoTerm(typeof value, value, this.parser)
                     );
@@ -678,7 +684,7 @@ export class RegoExp {
         if (this.terms.length === 1) {
             const term = this.terms[0];
             const value = term.getValue();
-            if (_.isUndefined(value)) return this;
+            if (isUndefined(value)) return this;
 
             this.value = value;
             this.isCompleteEvaluated = true;
@@ -739,13 +745,13 @@ export class RegoExp {
         parser: OpaCompileResponseParser
     ): RegoExp {
         const isNegated = expData.negated === true;
-        if (_.isEmpty(expData.terms)) {
+        if (isEmpty(expData.terms)) {
             if (isNegated) throw new Error("Invalid negated empty term!");
             return new RegoExp([], isNegated, false, null, parser);
         }
 
         let termsData: any[] = [];
-        if (_.isArray(expData.terms)) {
+        if (isArray(expData.terms)) {
             termsData = expData.terms;
         } else {
             termsData.push(expData.terms);
@@ -889,7 +895,7 @@ export interface CompleteRuleResult {
 }
 
 export function value2String(value: RegoValue) {
-    if (_.isBoolean(value) || _.isNumber(value)) return value.toString();
+    if (isBoolean(value) || isNumber(value)) return value.toString();
     else return JSON.stringify(value);
 }
 
@@ -957,7 +963,7 @@ export default class OpaCompileResponseParser {
      * @memberof OpaCompileResponseParser
      */
     parse(json: any): RegoRule[] {
-        if (_.isString(json)) {
+        if (isString(json)) {
             this.data = JSON.parse(json);
         } else {
             this.data = json;
@@ -969,11 +975,11 @@ export default class OpaCompileResponseParser {
 
         this.data = this.data.result;
         const packages: any[] =
-            _.isArray(this.data.support) && this.data.support.length
+            isArray(this.data.support) && this.data.support.length
                 ? this.data.support
                 : [];
 
-        if (_.isArray(this.data.queries) && this.data.queries.length) {
+        if (isArray(this.data.queries) && this.data.queries.length) {
             // --- create default query package for query body
             const defaultQueryPackage = {
                 package: {
@@ -1020,9 +1026,9 @@ export default class OpaCompileResponseParser {
             return [];
         }
         packages.forEach(p => {
-            if (!_.isArray(p.rules) || !p.rules.length) return;
+            if (!isArray(p.rules) || !p.rules.length) return;
             const packageName =
-                p.package && _.isArray(p.package.path)
+                p.package && isArray(p.package.path)
                     ? RegoRef.convertToFullRefString(p.package.path)
                     : "";
 
@@ -1129,7 +1135,7 @@ export default class OpaCompileResponseParser {
         }
 
         const defaultRule = rules.find(r => r.isDefault);
-        const defaultValue = _.isUndefined(defaultRule)
+        const defaultValue = isUndefined(defaultRule)
             ? undefined
             : defaultRule.value;
 

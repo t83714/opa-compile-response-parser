@@ -7,19 +7,18 @@ import { terser } from "rollup-plugin-terser";
 const ensureArray = maybeArr =>
     Array.isArray(maybeArr) ? maybeArr : [maybeArr];
 
-const makeExternalPredicate = externalArr => {
-    if (!externalArr.length) {
-        return () => false;
-    }
-    const pattern = new RegExp(`^(${externalArr.join("|")})($|/)`);
-    return id => pattern.test(id);
-};
-
 const extensions = [".js"];
 const deps = Object.keys(pkg.dependencies || {});
 const peerDeps = Object.keys(pkg.peerDependencies || {});
 
-const createConfig = ({ input, output, external, min = false, ...props }) => {
+const createConfig = ({
+    input,
+    output,
+    tsOptions = {},
+    external = "peers",
+    min = false,
+    ...props
+}) => {
     return {
         input: input ? input : "src/index.ts",
         output: ensureArray(output).map(format =>
@@ -28,9 +27,11 @@ const createConfig = ({ input, output, external, min = false, ...props }) => {
                 exports: "named"
             })
         ),
-        external: makeExternalPredicate(
-            external === "peers" ? peerDeps : deps.concat(peerDeps)
-        ),
+        external: (() => {
+            if (external === "peers") return peerDeps;
+            else if (external === "all") return deps.concat(peerDeps);
+            else return [];
+        })(),
         onwarn(warning, warn) {
             if (warning.code === "CIRCULAR_DEPENDENCY") return;
             warn(warning);
@@ -38,7 +39,9 @@ const createConfig = ({ input, output, external, min = false, ...props }) => {
         plugins: [
             typescript({
                 rollupCommonJSResolveHack: true,
-                useTsconfigDeclarationDir: true
+                useTsconfigDeclarationDir: true,
+                clean: true,
+                ...tsOptions
             }),
             nodeResolve({
                 mainFields: ["main", "module", "jsnext:main"],
@@ -76,40 +79,46 @@ export default [
     createConfig({
         output: {
             format: "cjs",
-            file: "dist/index.cjs.js"
-        }
+            file: "dist/cjs/index.js"
+        },
+        tsOptions: {
+            useTsconfigDeclarationDir: false,
+            declarationDir: "./dist/cjs"
+        },
+        external: "peers"
     }),
     // --- ES Module
     createConfig({
         output: {
             format: "esm",
-            file: "dist/index.esm.js"
-        }
+            file: "dist/esm/index.js"
+        },
+        external: "peers"
     }),
     // --- ES Module for Web Browser
     createConfig({
         output: {
             format: "esm",
-            file: "dist/index.min.mjs"
+            file: "dist/mjs/index.mjs"
         },
-        external: "peers",
+        external: "none",
         min: true
     }),
     // --- UMD Development
     createConfig({
         output: {
-            file: "dist/index.umd.js",
+            file: "dist/umd-dev/index.js",
             format: "umd"
         },
-        external: "peers"
+        external: "none"
     }),
     // --- UMD Production
     createConfig({
         output: {
-            file: "dist/index.min.umd.js",
+            file: "dist/umd-prod/index.js",
             format: "umd"
         },
-        external: "peers",
+        external: "none",
         min: true
     })
 ];

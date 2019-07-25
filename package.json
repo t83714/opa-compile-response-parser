@@ -3,9 +3,9 @@
   "version": "1.0.1",
   "private": true,
   "description": "An Open Policy Agent Compile Response Parser",
-  "main": "dist/index.cjs.js",
-  "module": "dist/index.esm.js",
-  "unpkg": "dist/index.min.umd.js",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "unpkg": "./dist/umd-prod/index.js",
   "files": [
     "dist",
     "LICENSE"
@@ -48,7 +48,10 @@
   },
   "homepage": "https://github.com/t83714/opa-compile-response-parser#readme",
   "dependencies": {
-    "lodash": "^4.17.15"
+    "lodash-es": "^4.17.15"
+  },
+  "peerDependencies": {
+    "tslib": "^1.10.0"
   },
   "devDependencies": {
     "@elastic/elasticsearch": "^7.2.0",
@@ -56,6 +59,7 @@
     "@types/chai-as-promised": "^7.1.0",
     "@types/fs-extra": "^8.0.0",
     "@types/lodash": "^4.14.136",
+    "@types/lodash-es": "^4.17.3",
     "@types/mocha": "^5.2.7",
     "@types/pg": "^7.4.14",
     "@types/recursive-readdir": "^2.2.0",
@@ -63,6 +67,7 @@
     "@types/request-promise-native": "^1.0.16",
     "@typescript-eslint/eslint-plugin": "^1.13.0",
     "@typescript-eslint/parser": "^1.13.0",
+    "lodash": "^4.17.15",
     "chai": "^4.2.0",
     "chai-as-promised": "^7.1.1",
     "eslint": "^6.1.0",
@@ -83,6 +88,7 @@
     "rollup-plugin-typescript2": "^0.22.0",
     "ts-node": "^8.3.0",
     "tsconfig-paths": "^3.8.0",
+    "tslib": "^1.10.0",
     "typedoc": "^0.14.2",
     "typedoc-plugin-markdown": "^2.0.11",
     "typescript": "^3.5.3"
@@ -91,12 +97,9 @@
   "npmName": "opa-compile-response-parser",
   "npmFileMap": [
     {
-      "basePath": "/dist/",
+      "basePath": "dist",
       "files": [
-        "*.js",
-        "*.ts",
-        "*.mjs",
-        "*.map"
+        "**/*"
       ]
     }
   ]

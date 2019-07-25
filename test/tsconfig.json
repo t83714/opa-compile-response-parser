@@ -1,17 +1,13 @@
 {
-    "extends": "../tsconfig.json",
     "compilerOptions": {
-        "declaration": true,
-        "declarationDir": "./dist",
         "module": "commonjs",
         "noImplicitAny": true,
         "importHelpers": true,
         "moduleResolution": "node",
-        "outDir": "./dist",
-        "target": "es5",
+        "target": "es3",
         "baseUrl": ".",
         "paths": {
-            "opa-compile-response-parser": ["../src"]
+            "opa-compile-response-parser": ["../dist/cjs"]
         }
     }
 }
