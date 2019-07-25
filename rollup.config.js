@@ -85,7 +85,7 @@ export default [
             useTsconfigDeclarationDir: false,
             declarationDir: "./dist/cjs"
         },
-        external: "peers"
+        external: "none"
     }),
     // --- ES Module
     createConfig({
@@ -93,7 +93,7 @@ export default [
             format: "esm",
             file: "dist/esm/index.js"
         },
-        external: "peers"
+        external: "none"
     }),
     // --- ES Module for Web Browser
     createConfig({

@@ -1,6 +1,6 @@
 {
   "name": "opa-compile-response-parser",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "private": true,
   "description": "An Open Policy Agent Compile Response Parser",
   "main": "./dist/cjs/index.js",
@@ -50,9 +50,6 @@
   "dependencies": {
     "lodash-es": "^4.17.15"
   },
-  "peerDependencies": {
-    "tslib": "^1.10.0"
-  },
   "devDependencies": {
     "@elastic/elasticsearch": "^7.2.0",
     "@types/chai": "^4.1.7",
@@ -93,6 +90,7 @@
     "typedoc-plugin-markdown": "^2.0.11",
     "typescript": "^3.5.3"
   },
+  "sideEffects": false,
   "typings": "./dist/index.d.ts",
   "npmName": "opa-compile-response-parser",
   "npmFileMap": [
