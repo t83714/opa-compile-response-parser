@@ -48,8 +48,8 @@ console.log(parser.evaluateAsHumanReadableString());
 
 #### More Examples
 
-- [Simple OPA AST To SQL Translator](./test/SimpleOpaSQLTranslator.ts)
-- [Simple OPA AST To Elastic Search Query DSL Translator](./test/SimpleOpaESTranslator.ts)
+- [Simple OPA AST To SQL Translator](https://github.com/t83714/opa-compile-response-parser/blob/master/test/SimpleOpaSQLTranslator.ts)
+- [Simple OPA AST To Elastic Search Query DSL Translator](https://github.com/t83714/opa-compile-response-parser/blob/master/test/SimpleOpaESTranslator.ts)
 
 ### Todo
 
