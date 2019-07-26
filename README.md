@@ -18,7 +18,12 @@ Moreover, it further processes the AST to:
 - replace rule reference with inline value
   - e.g. r1 { r2 } r2 { true } => r1 { true }
 
-Example:
+### API document
+
+https://t83714.github.io/opa-compile-response-parser/
+
+### Examples
+
 ```typescript
 import OpaCompileResponseParser from "opa-compile-response-parser";
 
@@ -41,6 +46,11 @@ const result = parser.evaluate();
 console.log(parser.evaluateAsHumanReadableString());
 ```
 
+#### More Examples
+
+- [Simple OPA AST To SQL Translator](./test/SimpleOpaSQLTranslator.ts)
+- [Simple OPA AST To Elastic Search Query DSL Translator](./test/SimpleOpaESTranslator.ts)
+
 ### Todo
 
 - replace rule reference with inline rules
@@ -49,6 +59,3 @@ console.log(parser.evaluateAsHumanReadableString());
 
 Work with Open Policy Agent version 0.11.0 or higher.
 
-### API document
-
-https://t83714.github.io/opa-compile-response-parser/

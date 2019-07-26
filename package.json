@@ -42,7 +42,7 @@
     "Parser"
   ],
   "author": "Jacky Jiang",
-  "license": "Apache-2.0",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/t83714/opa-compile-response-parser/issues"
   },
