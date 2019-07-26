@@ -65,6 +65,11 @@
 		<div class="col-8 col-content">
 			<div class="tsd-panel tsd-typography">
 				<h1 id="opa-compile-response-parser">opa-compile-response-parser</h1>
+				<p><a href="https://github.com/t83714/opa-compile-response-parser"><img src="https://img.shields.io/github/stars/t83714/opa-compile-response-parser.svg?style=social&label=Star&maxAge=2592000" alt="GitHub stars"></a>
+					<a href="https://www.npmjs.com/package/opa-compile-response-parser"><img src="https://img.shields.io/npm/v/opa-compile-response-parser.svg" alt="npm version"></a>
+					<a href="https://unpkg.com/opa-compile-response-parser"><img src="https://img.shields.io/badge/unpkg-latest-blue.svg" alt="unpkg"></a>
+					<a href="https://bundlephobia.com/result?p=opa-compile-response-parser"><img src="https://img.shields.io/bundlephobia/minzip/opa-compile-response-parser.svg" alt="npm bundle size (minified + gzip)"></a>
+				<a href="https://travis-ci.org/t83714/opa-compile-response-parser"><img src="https://travis-ci.org/t83714/opa-compile-response-parser.svg?branch=master" alt="Build Status"></a></p>
 				<p>An Open Policy Agent Compile Response Parser</p>
 				<p><a href="https://www.openpolicyagent.org/">Open Policy Agent</a> provides a <a href="https://www.openpolicyagent.org/docs/latest/rest-api/#compile-api">compile API</a> that allows you partially evaluate your policy. </p>
 				<p>This library can parse the compile JSON response and allow you to access the <a href="https://www.openpolicyagent.org/docs/latest/how-do-i-write-policies/#what-is-rego">Rego</a> AST (Abstract Syntax Tree) in the response body by Rego language structure.</p>
@@ -79,8 +84,10 @@
 						</ul>
 					</li>
 				</ul>
-				<p>Example:</p>
-				<pre><code class="language-typescript"><span class="hljs-keyword">import</span> OpaCompileResponseParser <span class="hljs-keyword">from</span> <span class="hljs-string">"OpaCompileResponseParser"</span>;
+				<h3 id="api-document">API document</h3>
+				<p><a href="https://t83714.github.io/opa-compile-response-parser/">https://t83714.github.io/opa-compile-response-parser/</a></p>
+				<h3 id="examples">Examples</h3>
+				<pre><code class="language-typescript"><span class="hljs-keyword">import</span> OpaCompileResponseParser <span class="hljs-keyword">from</span> <span class="hljs-string">"opa-compile-response-parser"</span>;
 
 <span class="hljs-keyword">const</span> parser = <span class="hljs-keyword">new</span> OpaCompileResponseParser();
 parser.parse(jsonResponse);
@@ -99,14 +106,17 @@ parser.parse(jsonResponse);
 
 <span class="hljs-comment">// --- Print residual rules as human readable string</span>
 <span class="hljs-built_in">console</span>.log(parser.evaluateAsHumanReadableString());</code></pre>
+				<h4 id="more-examples">More Examples</h4>
+				<ul>
+					<li><a href="./test/SimpleOpaSQLTranslator.ts">Simple OPA AST To SQL Translator</a></li>
+					<li><a href="./test/SimpleOpaESTranslator.ts">Simple OPA AST To Elastic Search Query DSL Translator</a></li>
+				</ul>
 				<h3 id="todo">Todo</h3>
 				<ul>
 					<li>replace rule reference with inline rules</li>
 				</ul>
 				<h3 id="compatibility">Compatibility</h3>
 				<p>Work with Open Policy Agent version 0.11.0 or higher.</p>
-				<h3 id="api-document">API document</h3>
-				<p><a href="https://t83714.github.io/opa-compile-response-parser/">https://t83714.github.io/opa-compile-response-parser/</a></p>
 			</div>
 		</div>
 		<div class="col-4 col-menu menu-sticky-wrap menu-highlight">
