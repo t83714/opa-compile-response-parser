@@ -14,9 +14,9 @@ This library can parse the compile JSON response and allow you to access the [Re
 
 Moreover, it further processes the AST to:
 - eliminate tautological rules 
-  - e.g. r { x; false }
+  - e.g. r { x; false } => false
 - replace rule reference with inline value
-  - e.g. r1 { r2 } r2 { true } => r1 { true }
+  - e.g. r1 { r2 } r2 { true } => r1 { true } => true
 
 ### API document
 
