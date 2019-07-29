@@ -76,11 +76,11 @@
 				<p>Moreover, it further processes the AST to:</p>
 				<ul>
 					<li>eliminate tautological rules <ul>
-							<li>e.g. r { x; false }</li>
+							<li>e.g. r { x; false } =&gt; false</li>
 						</ul>
 					</li>
 					<li>replace rule reference with inline value<ul>
-							<li>e.g. r1 { r2 } r2 { true } =&gt; r1 { true }</li>
+							<li>e.g. r1 { r2 } r2 { true } =&gt; r1 { true } =&gt; true</li>
 						</ul>
 					</li>
 				</ul>
