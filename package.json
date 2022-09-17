@@ -48,7 +48,7 @@
   },
   "homepage": "https://github.com/t83714/opa-compile-response-parser#readme",
   "dependencies": {
-    "lodash-es": "^4.17.15"
+    "lodash-es": "^4.17.21"
   },
   "devDependencies": {
     "@elastic/elasticsearch": "^7.2.0",
