@@ -1,6 +1,6 @@
-import typescript from "rollup-plugin-typescript2";
-import nodeResolve from "rollup-plugin-node-resolve";
-import commonjs from "rollup-plugin-commonjs";
+import typescript from "@rollup/plugin-typescript";
+import nodeResolve from "@rollup/plugin-node-resolve";
+import commonjs from "@rollup/plugin-commonjs";
 import pkg from "./package.json";
 import { terser } from "rollup-plugin-terser";
 
@@ -38,27 +38,17 @@ const createConfig = ({
         },
         plugins: [
             typescript({
-                rollupCommonJSResolveHack: true,
-                useTsconfigDeclarationDir: true,
-                clean: true,
-                ...tsOptions
+                compilerOptions:{
+                    ...tsOptions
+                }
+                
             }),
             nodeResolve({
                 mainFields: ["main", "module", "jsnext:main"],
                 extensions
             }),
             commonjs({
-                include: "node_modules/**",
-                namedExports: {
-                    "node_modules/lodash/lodash.js": [
-                        "isString",
-                        "isBoolean",
-                        "isUndefined",
-                        "isArray",
-                        "isNumber",
-                        "isEmpty"
-                    ]
-                }
+                include: "node_modules/**"
             }),
             min &&
                 terser({
@@ -82,7 +72,6 @@ export default [
             file: "dist/cjs/index.js"
         },
         tsOptions: {
-            useTsconfigDeclarationDir: false,
             declarationDir: "./dist/cjs"
         },
         external: "none"
