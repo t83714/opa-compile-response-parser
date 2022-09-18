@@ -76,7 +76,7 @@
     "eslint-config-prettier": "^6.0.0",
     "eslint-plugin-prettier": "^3.1.0",
     "fs-extra": "^8.1.0",
-    "lodash": "^4.17.15",
+    "lodash": "^4.17.21",
     "mocha": "^6.1.4",
     "pg": "^8.7.3",
     "prettier": "^1.18.2",
