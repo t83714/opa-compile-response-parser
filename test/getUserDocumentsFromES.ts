@@ -1,7 +1,7 @@
 import * as pg from "pg";
 import * as es from "@elastic/elasticsearch";
 import * as _ from "lodash";
-import * as request from "request-promise-native";
+import fetch from "cross-fetch";
 import OpaCompileResponseParser from "opa-compile-response-parser";
 import SimpleOpaESTranslator from "./SimpleOpaESTranslator";
 import createUserSessionData from "./createUserSessionData";
@@ -19,19 +19,22 @@ export default async function getUserDocuments(
     userName: string
 ): Promise<Document[]> {
     const userData = await createUserSessionData(pool, userName);
-    const res = await request(`http://localhost:8181/v1/compile`, {
+    const res = await fetch(`http://localhost:8181/v1/compile`, {
         method: "post",
-        json: {
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
             query: "data.object.document.allow == true",
             input: {
                 user: userData
             },
             unknowns: ["input.document"]
-        }
+        })
     });
 
     const parser = new OpaCompileResponseParser();
-    parser.parse(res);
+    parser.parse(await res.json());
 
     const ruleResult = parser.evaluate();
 
