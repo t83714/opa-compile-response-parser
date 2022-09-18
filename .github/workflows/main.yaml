@@ -14,7 +14,7 @@ jobs:
           node-version: 14
       - run: yarn install
       - run: yarn build
-      - run: yarn start-es && yarn start-db && yarn-opa && sleep 30s
+      - run: yarn start-es && yarn start-db && yarn start-opa && sleep 30s
       - run: yarn test
       - run: yarn eslint
 
