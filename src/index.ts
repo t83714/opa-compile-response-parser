@@ -1,11 +1,11 @@
-import isString from "lodash-es/isString";
-import isBoolean from "lodash-es/isBoolean";
-import isUndefined from "lodash-es/isUndefined";
-import isArray from "lodash-es/isArray";
-import isEmpty from "lodash-es/isEmpty";
-import isNumber from "lodash-es/isNumber";
+import _ from "lodash";
 
-export type RegoValue = string | boolean | number | any[] | Record<string, any>;
+export type RegoValue =
+    | string
+    | boolean
+    | number
+    | Array<any>
+    | Record<string, any>;
 
 export interface RegoRuleOptions {
     name: string;
@@ -67,6 +67,18 @@ export class RegoRule {
     public value: RegoValue;
 
     /**
+     * Whether the rule contains any expressions that has any resolvable references.
+     * reference start with `input.` should be considered as non-resolvable in context of partial evaluation.
+     * When this field is set to `true`, we should not attempt to evaluate this expression.
+     * i.e. evaluate() method should return immediately.
+     * This will speed up evaluation process.
+     *
+     * @type {boolean}
+     * @memberof RegoRule
+     */
+    public hasNoResolvableRef: boolean = false;
+
+    /**
      * All Rego expressions in this rule's rule body. @see RegoExp
      *
      * @type {RegoExp[]}
@@ -82,7 +94,7 @@ export class RegoRule {
      * @type {boolean}
      * @memberof RegoRule
      */
-    public isMatched: boolean;
+    public isMatched?: boolean;
 
     /**
      * If the rule is fully evaluate
@@ -104,16 +116,16 @@ export class RegoRule {
 
     constructor(options: RegoRuleOptions) {
         this.isCompleteEvaluated = false;
-        this.name = isString(options.name) ? options.name : "";
-        this.fullName = isString(options.fullName) ? options.fullName : "";
-        this.isDefault = isBoolean(options.isDefault)
+        this.name = _.isString(options.name) ? options.name : "";
+        this.fullName = _.isString(options.fullName) ? options.fullName : "";
+        this.isDefault = _.isBoolean(options.isDefault)
             ? options.isDefault
             : false;
-        this.value = isUndefined(options.value) ? true : options.value;
-        this.expressions = isArray(options.expressions)
+        this.value = _.isUndefined(options.value) ? true : options.value;
+        this.expressions = _.isArray(options.expressions)
             ? options.expressions
             : [];
-        this.isCompleteEvaluated = isBoolean(options.isCompleteEvaluated)
+        this.isCompleteEvaluated = _.isBoolean(options.isCompleteEvaluated)
             ? options.isCompleteEvaluated
             : false;
         this.parser = options.parser;
@@ -129,9 +141,75 @@ export class RegoRule {
         if (!(this.parser instanceof OpaCompileResponseParser)) {
             throw new Error("Require parser parameter to create a RegoRule");
         }
+
+        this.removeDuplicateExpressions();
+
+        if (
+            this.expressions?.length &&
+            this.expressions.findIndex((exp) => !exp.hasNoResolvableRef) === -1
+        ) {
+            this.hasNoResolvableRef = true;
+        }
+
+        this.evaluate();
     }
 
-    clone(): RegoRule {
+    /**
+     * OPA PE result might contain duplicate expressions.
+     * https://github.com/open-policy-agent/opa/issues/4516
+     * This method will remove those duplication by simply string comparison.
+     *
+     * @return {*}
+     * @memberof RegoRule
+     */
+    removeDuplicateExpressions() {
+        if (!this?.expressions?.length) {
+            return;
+        }
+        const expSet = new Set();
+        this.expressions = this.expressions.filter((exp) => {
+            const orgSetLength = expSet.size;
+            // exp.toJSON() is faster than exp.toConciseJSON()
+            expSet.add(exp.toJSON(0, true));
+            return expSet.size > orgSetLength;
+        });
+    }
+
+    /**
+     * Test whether the rule is an "impossible" rule.
+     * If so, the rule should be simply discarded.
+     * See: https://github.com/open-policy-agent/opa/issues/4516
+     *
+     * @return {*}  {boolean}
+     * @memberof RegoRule
+     */
+    isImpossible(): boolean {
+        if (!this?.expressions?.length) {
+            return false;
+        }
+        const nonNegatedExpSet = new Set();
+        const negatedExps = this.expressions.filter((exp) => {
+            if (exp.isNegated) {
+                return true;
+            } else {
+                // add non negated exp content to set
+                // exp.toJSON() is faster than exp.toConciseJSON()
+                nonNegatedExpSet.add(exp.toJSON(0, true));
+                return false;
+            }
+        });
+        if (!negatedExps.length) {
+            return false;
+        }
+        for (const exp of negatedExps) {
+            if (nonNegatedExpSet.has(exp.toJSON(0, true, true))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    clone(options: Partial<RegoRuleOptions> = {}): RegoRule {
         const regoRule = new RegoRule({
             name: this.name,
             fullName: this.fullName,
@@ -139,7 +217,8 @@ export class RegoRule {
             value: this.value,
             isCompleteEvaluated: this.isCompleteEvaluated,
             expressions: this.expressions.map((e) => e.clone()),
-            parser: this.parser
+            parser: this.parser,
+            ...options
         });
         regoRule.isMatched = this.isMatched;
         return regoRule;
@@ -153,33 +232,59 @@ export class RegoRule {
      * @memberof RegoRule
      */
     evaluate() {
-        this.expressions = this.expressions.map((exp) => exp.evaluate());
-        const falseExpression = this.expressions.find(
-            (exp) => exp.isMatch() === false
-        );
-        if (!isUndefined(falseExpression)) {
-            // --- rule expressions are always evaluated in the context of AND
-            // --- any false expression will make the rule not match
+        if (this.hasNoResolvableRef) {
+            return this;
+        }
+
+        if (this.isCompleteEvaluated) {
+            return this;
+        }
+
+        if (!this?.expressions?.length) {
+            // a rule with empty body / no expression is matched
             this.isCompleteEvaluated = true;
-            this.isMatched = false;
-        } else {
-            // --- filter out all expressions are evaluated
-            // --- note any non-false value will considered as a match (true) i.e. 0 is equivalent to true
-            const idx = this.expressions.findIndex(
-                (exp) => !exp.isCompleteEvaluated
-            );
-            if (idx === -1) {
+            this.isMatched = true;
+            return this;
+        }
+
+        let unresolvable = false;
+        for (let i = 0; i < this.expressions.length; i++) {
+            const exp = this.expressions[i];
+            exp.evaluate();
+            if (!exp.isResolvable()) {
+                unresolvable = true;
+                continue;
+            }
+            if (!exp.isMatched()) {
+                // --- rule expressions are always evaluated in the context of AND
+                // --- any false expression will make the rule not match
                 this.isCompleteEvaluated = true;
-                this.isMatched = true;
-            } else {
-                // --- further dry the rule if the rule has unsolved exps
-                // --- if a exp is matched (i.e. true) it can be strip out as true AND xxxx = xxxx
-                this.expressions = this.expressions.filter(
-                    (exp) => exp.isMatch() !== true
-                );
+                this.isMatched = false;
+                return this;
             }
         }
-        return this;
+
+        if (unresolvable) {
+            // there is at least one exp is unresolvable now
+            return this;
+        } else {
+            this.isCompleteEvaluated = true;
+            this.isMatched = true;
+            return this;
+        }
+    }
+
+    /**
+     * Whether or not the rule is resolvable (i.e. we can tell whether it's matched or not) now.
+     *
+     * @return {*}  {boolean}
+     * @memberof RegoRule
+     */
+    isResolvable(): boolean {
+        if (!this.isCompleteEvaluated) {
+            this.evaluate();
+        }
+        return this.isCompleteEvaluated;
     }
 
     /**
@@ -205,6 +310,34 @@ export class RegoRule {
         }
     }
 
+    toData() {
+        return {
+            default: this.isDefault,
+            value: this.value,
+            fullName: this.fullName,
+            name: this.name,
+            expressions: this.expressions.map((exp, idx) => exp.toData(idx))
+        };
+    }
+
+    toJson() {
+        return JSON.stringify(this.toData());
+    }
+
+    toConciseData() {
+        return {
+            default: this.isDefault,
+            value: this.value,
+            fullName: this.fullName,
+            name: this.name,
+            expressions: this.expressions.map((exp) => exp.toConciseData())
+        };
+    }
+
+    toConciseJSON() {
+        return JSON.stringify(this.toConciseData());
+    }
+
     /**
      * Create RegoRule from Opa response data
      *
@@ -224,7 +357,7 @@ export class RegoRule {
         const ruleFullName = [packageName, ruleName].join(".");
         const ruleIsDefault = r.default === true;
         const ruleValue =
-            r.head && r.head.value && !isUndefined(r.head.value.value)
+            r.head && r.head.value && !_.isUndefined(r.head.value.value)
                 ? r.head.value.value
                 : true;
         const ruleOptions: RegoRuleOptions = {
@@ -239,7 +372,6 @@ export class RegoRule {
             parser
         };
         const regoRule = new RegoRule(ruleOptions);
-        regoRule.evaluate();
         return regoRule;
     }
 
@@ -247,10 +379,27 @@ export class RegoRule {
         data: any,
         parser: OpaCompileResponseParser
     ): RegoExp[] {
-        if (!isArray(data) || !data.length) {
+        if (!_.isArray(data) || !data.length) {
             throw new Error(`Encountered empty rule body.`);
         }
         return data.map((expData) => RegoExp.parseFromData(expData, parser));
+    }
+
+    static randomRuleName(prefix: string) {
+        return (prefix + Math.random()).replace(".", "_");
+    }
+
+    static createFromValue(val: RegoValue, parser: OpaCompileResponseParser) {
+        const ruleName = RegoRule.randomRuleName("fixed_value_rule_");
+        return new RegoRule({
+            isDefault: false,
+            name: ruleName,
+            fullName: ruleName,
+            isCompleteEvaluated: true,
+            expressions: [],
+            value: val,
+            parser
+        });
     }
 }
 
@@ -259,9 +408,7 @@ export interface RegoRefPart {
     value: string;
 }
 
-export const RegoOperators: {
-    [k: string]: string;
-} = {
+export const RegoOperators = {
     eq: "=", // --- eq & equal are different in rego but no difference for value evluation.
     equal: "=",
     neq: "!=",
@@ -269,7 +416,11 @@ export const RegoOperators: {
     gt: ">",
     lte: "<=",
     gte: ">="
-};
+} as const;
+
+export type RegoOperatorAstString = keyof typeof RegoOperators;
+
+export type RegoOperatorString = typeof RegoOperators[RegoOperatorAstString];
 
 export type RegoTermValue = RegoRef | RegoValue;
 
@@ -288,6 +439,18 @@ export class RegoTerm {
     public value: RegoTermValue;
     private parser: OpaCompileResponseParser;
 
+    /**
+     * Whether the expression contains any resolvable references.
+     * reference start with `input.` should be considered as non-resolvable in context of partial evaluation.
+     * When this field is set to `true`, we should not attempt to evaluate this expression.
+     * i.e. evaluate() method should return immediately.
+     * This will speed up evaluation process.
+     *
+     * @type {boolean}
+     * @memberof RegoTerm
+     */
+    public hasNoResolvableRef: boolean = false;
+
     constructor(
         type: string,
         value: RegoTermValue,
@@ -296,6 +459,9 @@ export class RegoTerm {
         this.type = type;
         this.value = value;
         this.parser = parser;
+        if (this.value instanceof RegoRef && this.value.hasNoResolvableRef) {
+            this.hasNoResolvableRef = true;
+        }
     }
 
     clone() {
@@ -310,7 +476,7 @@ export class RegoTerm {
      */
     asString() {
         if (this.value instanceof RegoRef) return this.value.fullRefString();
-        else return this.value;
+        else return JSON.stringify(this.value);
     }
 
     /**
@@ -419,7 +585,7 @@ export class RegoTerm {
      * @returns {string}
      * @memberof RegoTerm
      */
-    asOperator(): string {
+    asOperator() {
         if (this.value instanceof RegoRef) {
             return this.value.asOperator();
         } else {
@@ -448,6 +614,9 @@ export class RegoTerm {
      * @memberof RegoTerm
      */
     getValue(): RegoValue {
+        if (this.hasNoResolvableRef) {
+            return undefined;
+        }
         if (!this.isRef()) {
             return this.value;
         } else {
@@ -455,11 +624,67 @@ export class RegoTerm {
                 return undefined;
             } else {
                 const fullName = this.fullRefString();
-                const result = this.parser.completeRuleResults[fullName];
-                if (isUndefined(result)) return undefined;
-                return result.value;
+                if (!this.parser.isRefResolvable(fullName)) {
+                    return undefined;
+                }
+                return this.parser.getRefValue(fullName);
             }
         }
+    }
+
+    /**
+     * Whether or not the RegoTerm is resolvable
+     *
+     * @return {*}  {boolean}
+     * @memberof RegoTerm
+     */
+    isValueResolvable(): boolean {
+        if (this.hasNoResolvableRef) {
+            return false;
+        }
+        if (!this.isRef()) {
+            return true;
+        } else {
+            if (this.isOperator()) {
+                return false;
+            } else {
+                const fullName = this.fullRefString();
+                return this.parser.isRefResolvable(fullName);
+            }
+        }
+    }
+
+    toData() {
+        if (this.isRef()) {
+            return (this.value as RegoRef).toData();
+        } else {
+            return {
+                type: this.type,
+                value: this.value
+            };
+        }
+    }
+
+    toJson(): string {
+        return JSON.stringify(this.toData());
+    }
+
+    toConciseData() {
+        if (this.isRef()) {
+            return {
+                isRef: true,
+                value: this.fullRefString()
+            };
+        } else {
+            return {
+                isRef: false,
+                value: this.value
+            };
+        }
+    }
+
+    toConciseJSON(): string {
+        return JSON.stringify(this.toConciseData());
     }
 
     static parseFromData(
@@ -488,6 +713,18 @@ export class RegoExp {
      * @memberof RegoExp
      */
     public terms: RegoTerm[];
+
+    /**
+     * Whether the expression contains any resolvable references.
+     * reference start with `input.` should be considered as non-resolvable in context of partial evaluation.
+     * When this field is set to `true`, we should not attempt to evaluate this expression.
+     * i.e. evaluate() method should return immediately.
+     * This will speed up evaluation process.
+     *
+     * @type {boolean}
+     * @memberof RegoExp
+     */
+    public hasNoResolvableRef: boolean = false;
 
     /**
      * Whether this expression is a negative expression
@@ -535,6 +772,12 @@ export class RegoExp {
         this.isCompleteEvaluated = isCompleteEvaluated;
         this.value = value;
         this.parser = parser;
+        if (
+            this?.terms?.length &&
+            this.terms.findIndex((item) => !item.hasNoResolvableRef) === -1
+        ) {
+            this.hasNoResolvableRef = true;
+        }
     }
 
     clone(): RegoExp {
@@ -555,7 +798,22 @@ export class RegoExp {
      * @memberof RegoExp
      */
     termsAsString() {
-        return this.terms.map((t) => t.asString());
+        return this.terms.map((t) => t.asString()).join(" ");
+    }
+
+    /**
+     * Print concise format expression string presentation.
+     * Can be used for debugging
+     *
+     * @return {*}
+     * @memberof RegoExp
+     */
+    asString() {
+        if (this.isNegated) {
+            return "NOT " + this.termsAsString();
+        } else {
+            return this.termsAsString();
+        }
     }
 
     /**
@@ -570,7 +828,7 @@ export class RegoExp {
             const parts = [];
             if (this.isNegated) parts.push("NOT");
 
-            if (!isUndefined(value)) {
+            if (!_.isUndefined(value)) {
                 parts.push(value2String(value));
             } else {
                 parts.push(this.terms[0].fullRefString());
@@ -612,20 +870,46 @@ export class RegoExp {
             // --- undefined is a common value in Rego similar to false
             // --- we set to false here to tell the difference between
             // --- real undefined (not full resolved) and undefined value
-            if (isUndefined(this.value)) return false;
+            if (_.isUndefined(this.value)) return false;
             else return this.value;
         }
     }
 
-    isMatch() {
-        const value = this.getValue();
-        if (isUndefined(value)) {
+    /**
+     * Whether or not a expression should be considered as "matched".
+     * If all expressions of a rule are "matched", the rule will be considered as "matched".
+     * Thus, the rule has a value.
+     *
+     * Please note: if an expression's value is `0`, empty string "", null etc, the expression is considered as "matched".
+     * We only consider an expression as "Not Matched" when the expression has value `false` or is undefined.
+     *
+     * @return {boolean}
+     * @memberof RegoExp
+     */
+    isMatched() {
+        if (!this.isResolvable()) {
             return undefined;
-        } else {
-            if (value === false || isUndefined(value)) return false;
-            // --- 0 is a match
-            return true;
         }
+        const isMatched =
+            this.value === false || _.isUndefined(this.value) ? false : true;
+        if (this.isNegated) {
+            return !isMatched;
+        } else {
+            return isMatched;
+        }
+    }
+
+    /**
+     * Whether or not the expression is resolvable now.
+     *
+     * @return {boolean}
+     * @memberof RegoExp
+     */
+    isResolvable(): boolean {
+        if (!this.isCompleteEvaluated) {
+            this.evaluate();
+        }
+        return this.isCompleteEvaluated;
     }
 
     /**
@@ -635,7 +919,7 @@ export class RegoExp {
      * @returns {[string, RegoTerm[]]}
      * @memberof RegoExp
      */
-    toOperatorOperandsArray(): [string, RegoTerm[]] {
+    toOperatorOperandsArray(): [RegoOperatorString, RegoTerm[]] {
         if (this.terms.length !== 3) {
             throw new Error(
                 `Can't get Operator & Operands from non 3 terms expression: ${this.termsAsString()}`
@@ -647,12 +931,7 @@ export class RegoExp {
             if (t.isOperator()) {
                 operator = t.asOperator();
             } else {
-                const value = t.getValue();
-                if (!isUndefined(value)) {
-                    operands.push(
-                        new RegoTerm(typeof value, value, this.parser)
-                    );
-                } else operands.push(t);
+                operands.push(t);
             }
         });
         if (!operator) {
@@ -675,19 +954,26 @@ export class RegoExp {
      * @memberof RegoExp
      */
     evaluate() {
+        if (this.hasNoResolvableRef) {
+            return this;
+        }
+        if (this.isCompleteEvaluated) {
+            return this;
+        }
+        // --- so far there is no 2 terms expression e.g. ! x
+        // --- builtin function should never be included in residual rule
+        // --- as we won't apply them on unknowns
         if (this.terms.length === 0) {
             // --- exp should be considered as matched (true)
-            // --- unless isNegated is true
-            // --- will try to normalise isNegated here
             this.isCompleteEvaluated = true;
-            this.value = this.isNegated ? false : true;
-            this.isNegated = false;
-        }
-        if (this.terms.length === 1) {
+            this.value = true;
+            return this;
+        } else if (this.terms.length === 1) {
             const term = this.terms[0];
+            if (!term.isValueResolvable()) {
+                return this;
+            }
             const value = term.getValue();
-            if (isUndefined(value)) return this;
-
             this.value = value;
             this.isCompleteEvaluated = true;
             return this;
@@ -695,40 +981,45 @@ export class RegoExp {
             // --- 3 terms expression e.g. true == true or x >= 3
             // --- we only evalute some redundant expression e.g. true == true or false != true
             const [operator, operands] = this.toOperatorOperandsArray();
-            if (operands.findIndex((op) => op.isRef()) !== -1) {
-                // --- this expression involve unknown no need to evalute
-                return this;
-            } else {
-                const operandsValues = operands.map((op) => op.getValue());
-                let value = null;
-                switch (operator) {
-                    case "=":
-                        value = operandsValues[0] === operandsValues[1];
-                        break;
-                    case ">":
-                        value = operandsValues[0] > operandsValues[1];
-                        break;
-                    case "<":
-                        value = operandsValues[0] < operandsValues[1];
-                        break;
-                    case ">=":
-                        value = operandsValues[0] >= operandsValues[1];
-                        break;
-                    case "<=":
-                        value = operandsValues[0] <= operandsValues[1];
-                        break;
-                    case "!=":
-                        value = operandsValues[0] != operandsValues[1];
-                        break;
-                    default:
-                        throw new Error(
-                            `Invalid 3 terms rego expression, Unknown operator "${operator}": ${this.termsAsString()}`
-                        );
-                }
-                this.isCompleteEvaluated = true;
-                this.value = value;
+            if (
+                !operands[0].isValueResolvable() ||
+                !operands[1].isValueResolvable()
+            ) {
+                // if one of the term value is resolvable now, we can't evaluate further.
                 return this;
             }
+
+            const operandsValues = operands.map((op) => op.getValue());
+            if (operandsValues.findIndex((v) => typeof v === "undefined")) {
+            }
+            let value = null;
+            switch (operator) {
+                case "=":
+                    value = operandsValues[0] === operandsValues[1];
+                    break;
+                case ">":
+                    value = operandsValues[0] > operandsValues[1];
+                    break;
+                case "<":
+                    value = operandsValues[0] < operandsValues[1];
+                    break;
+                case ">=":
+                    value = operandsValues[0] >= operandsValues[1];
+                    break;
+                case "<=":
+                    value = operandsValues[0] <= operandsValues[1];
+                    break;
+                case "!=":
+                    value = operandsValues[0] != operandsValues[1];
+                    break;
+                default:
+                    throw new Error(
+                        `Invalid 3 terms rego expression, Unknown operator "${operator}": ${this.termsAsString()}`
+                    );
+            }
+            this.isCompleteEvaluated = true;
+            this.value = value;
+            return this;
         } else {
             throw new Error(
                 `Invalid ${
@@ -736,10 +1027,67 @@ export class RegoExp {
                 } terms rego expression: ${this.termsAsString()}`
             );
         }
-        // --- so far there is no 2 terms expression e.g. ! x
-        // --- builtin function should never be included in residual rule
-        // --- as we won't apply them on unknowns
-        return this;
+    }
+
+    toData(index: number = 0, ignoreIndex = false, ignoreNegated = false) {
+        const terms = this.terms.map((term) => term.toData());
+        if (this.isNegated && !ignoreNegated) {
+            if (ignoreIndex) {
+                return {
+                    negated: true,
+                    terms
+                };
+            } else {
+                return {
+                    negated: true,
+                    index,
+                    terms
+                };
+            }
+        } else {
+            if (ignoreIndex) {
+                return {
+                    terms
+                };
+            } else {
+                return {
+                    index,
+                    terms
+                };
+            }
+        }
+    }
+
+    toJSON(
+        index: number = 0,
+        ignoreIndex = false,
+        ignoreNegated = false
+    ): string {
+        return JSON.stringify(this.toData(index, ignoreIndex, ignoreNegated));
+    }
+
+    toConciseData() {
+        let data;
+        if (this.terms.length === 1) {
+            const term = this.terms[0];
+            data = {
+                negated: this.isNegated,
+                operator: null as string | null,
+                operands: [term.toConciseData()]
+            };
+        } else {
+            const [operator, operands] = this.toOperatorOperandsArray();
+            data = {
+                negated: this.isNegated,
+                operator,
+                operands: operands.map((item) => item.toConciseData())
+            };
+        }
+        return data;
+    }
+
+    toConciseJSON(): string {
+        return JSON.stringify(this.toConciseData());
     }
 
     static parseFromData(
@@ -747,13 +1095,13 @@ export class RegoExp {
         parser: OpaCompileResponseParser
     ): RegoExp {
         const isNegated = expData.negated === true;
-        if (isEmpty(expData.terms)) {
+        if (_.isEmpty(expData.terms)) {
             if (isNegated) throw new Error("Invalid negated empty term!");
             return new RegoExp([], isNegated, false, null, parser);
         }
 
         let termsData: any[] = [];
-        if (isArray(expData.terms)) {
+        if (_.isArray(expData.terms)) {
             termsData = expData.terms;
         } else {
             termsData.push(expData.terms);
@@ -779,12 +1127,42 @@ export class RegoExp {
 export class RegoRef {
     public parts: RegoRefPart[];
 
+    /**
+     * Whether the expression contains any resolvable references.
+     * reference start with `input.` should be considered as non-resolvable in context of partial evaluation.
+     * When this field is set to `true`, we should not attempt to evaluate this expression.
+     * i.e. evaluate() method should return immediately.
+     * This will speed up evaluation process.
+     *
+     * @type {boolean}
+     * @memberof RegoRef
+     */
+    public hasNoResolvableRef: boolean = false;
+
     constructor(parts: RegoRefPart[]) {
         this.parts = parts;
+        if (
+            // `input.` ref should be considered not resolvable in partial evaluate context.
+            (this.parts.length && this.parts[0]?.value === "input") ||
+            this.isOperator()
+        ) {
+            this.hasNoResolvableRef = true;
+        }
     }
 
     clone(): RegoRef {
         return new RegoRef(this.parts.map((p) => ({ ...p })));
+    }
+
+    toData() {
+        return {
+            type: "ref",
+            value: this.parts
+        };
+    }
+
+    toJson(): string {
+        return JSON.stringify(this.toData());
     }
 
     static parseFromData(data: any): RegoRef {
@@ -832,10 +1210,8 @@ export class RegoRef {
                 }
                 if (isFirstPart) isFirstPart = false;
                 return partStr;
-                //--- a.[_].[_] should be a[_][_]
             })
-            .join(".")
-            .replace(/\.\[/g, "[");
+            .join(".");
         return this.removeAllPrefixs(str, removalPrefixs);
     }
 
@@ -882,8 +1258,9 @@ export class RegoRef {
         return refString.lastIndexOf("[_]") === refString.length - 3;
     }
 
-    asOperator(): string {
-        if (this.isOperator()) return RegoOperators[this.fullRefString()];
+    asOperator(): RegoOperatorString | null {
+        if (this.isOperator())
+            return RegoOperators[this.fullRefString() as RegoOperatorAstString];
         else return null;
     }
 }
@@ -897,8 +1274,212 @@ export interface CompleteRuleResult {
 }
 
 export function value2String(value: RegoValue) {
-    if (isBoolean(value) || isNumber(value)) return value.toString();
+    if (_.isBoolean(value) || _.isNumber(value)) return value.toString();
     else return JSON.stringify(value);
+}
+
+export class RegoRuleSet {
+    public fullName: string = "";
+    public name: string = "";
+    public rules: RegoRule[] = [];
+    public defaultRule: RegoRule | null = null;
+    public value?: any;
+    public isCompleteEvaluated: boolean = false;
+    public parser: OpaCompileResponseParser;
+
+    /**
+     * Whether the ruleSet contains any rules that has any resolvable references.
+     * reference start with `input.` should be considered as non-resolvable in context of partial evaluation.
+     * When this field is set to `true`, we should not attempt to evaluate this expression.
+     * i.e. evaluate() method should return immediately.
+     * This will speed up evaluation process.
+     *
+     * @type {boolean}
+     * @memberof RegoRuleSet
+     */
+    public hasNoResolvableRef: boolean = false;
+
+    constructor(
+        parser: OpaCompileResponseParser,
+        rules: RegoRule[],
+        fullName: string = "",
+        name: string = ""
+    ) {
+        this.parser = parser;
+        if (rules?.length) {
+            const defaultRuleIdx = rules.findIndex((r) => r.isDefault);
+            if (defaultRuleIdx !== -1) {
+                this.defaultRule = rules[defaultRuleIdx];
+            }
+            this.rules = rules.filter((r) => !r.isDefault);
+        }
+        if (fullName) {
+            this.fullName = fullName;
+        } else if (rules?.[0]?.fullName) {
+            this.fullName = rules[0].fullName;
+        }
+
+        if (name) {
+            this.name = name;
+        } else if (rules?.[0]?.name) {
+            this.name = rules[0].name;
+        }
+        if (
+            this.rules.length &&
+            this.rules.findIndex((r) => !r.hasNoResolvableRef) === -1
+        ) {
+            this.hasNoResolvableRef = true;
+        }
+        this.evaluate();
+    }
+
+    evaluate(): RegoRuleSet {
+        if (this.hasNoResolvableRef) {
+            return this;
+        }
+
+        if (this.isCompleteEvaluated) {
+            return this;
+        }
+
+        if (!this.rules?.length) {
+            if (!this.defaultRule) {
+                this.isCompleteEvaluated = true;
+                this.value = undefined;
+                return this;
+            } else {
+                if (this.defaultRule.isResolvable()) {
+                    this.isCompleteEvaluated = true;
+                    this.value = this.defaultRule.value;
+                    return this;
+                } else {
+                    return this;
+                }
+            }
+        }
+        this.rules.forEach((r) => r.evaluate());
+        const matchedRule = this.rules.find(
+            (r) => r.isResolvable() && r.isMatched
+        );
+        if (matchedRule) {
+            this.isCompleteEvaluated = true;
+            this.value = matchedRule.value;
+            return this;
+        }
+
+        if (this.rules.findIndex((r) => !r.isResolvable()) !== -1) {
+            // still has rule unresolvable
+            return this;
+        }
+
+        // rest (if any) are all unmatched rules
+        if (!this.defaultRule) {
+            this.isCompleteEvaluated = true;
+            this.value = undefined;
+            return this;
+        } else {
+            if (this.defaultRule.isResolvable()) {
+                this.isCompleteEvaluated = true;
+                this.value = this.defaultRule.value;
+                return this;
+            } else {
+                return this;
+            }
+        }
+    }
+
+    isResolvable(): boolean {
+        if (!this.isCompleteEvaluated) {
+            this.evaluate();
+        }
+        return this.isCompleteEvaluated;
+    }
+
+    getResidualRules(): RegoRule[] {
+        if (this.isResolvable()) {
+            return [];
+        }
+
+        let rules = this.defaultRule
+            ? [this.defaultRule, ...this.rules]
+            : [...this.rules];
+
+        rules = this.rules.filter((r) => !r.isResolvable());
+        if (!rules.length) {
+            return [];
+        }
+
+        rules = _.flatMap(rules, (rule) => {
+            // all resolvable expressions can all be ignored as:
+            // - if the expression is resolved to "matched", it won't impact the result of the rule
+            // - if the expression is resolved to "unmatched", the rule should be resolved to "unmatched" earlier.
+            const unresolvedExpressions = rule.expressions.filter(
+                (exp) => !exp.isResolvable()
+            );
+            if (unresolvedExpressions.length !== 1) {
+                return [rule];
+            }
+            // For rules with single expression, reduce the layer by replacing it with target reference rules
+            const exp = unresolvedExpressions[0];
+            if (exp.terms.length === 1) {
+                const fullName = exp.terms[0].fullRefString();
+                const ruleSet = this.parser.ruleSets[fullName];
+                if (!ruleSet) {
+                    const compressedRule = rule.clone();
+                    compressedRule.expressions = [exp];
+                    return [compressedRule];
+                }
+                return ruleSet.getResidualRules();
+            } else if (exp.terms.length === 3) {
+                const [operator, [op1, op2]] = exp.toOperatorOperandsArray();
+                if (operator != "=" && operator != "!=") {
+                    // For now, we will only further process the ref when operator is = or !=
+                    return [rule];
+                }
+                if (!op1.isValueResolvable() && !op2.isValueResolvable()) {
+                    // when both op1 & op1 are not resolvable ref, we will not attempt to process further
+                    return [rule];
+                }
+                const value = op1.isValueResolvable()
+                    ? op1.getValue()
+                    : op2.getValue();
+                const refTerm = op1.isValueResolvable() ? op2 : op1;
+
+                const fullName = refTerm.fullRefString();
+                const ruleSet = this.parser.ruleSets[fullName];
+                if (!ruleSet) {
+                    const compressedRule = rule.clone();
+                    compressedRule.expressions = [exp];
+                    return [compressedRule];
+                }
+                let refRules = ruleSet.getResidualRules();
+
+                // when negated expression, reverse the operator
+                const convertedOperator: RegoOperatorString = exp.isNegated
+                    ? operator == "="
+                        ? "!="
+                        : "="
+                    : operator;
+
+                if (convertedOperator == "=") {
+                    refRules = refRules.filter((r) => r.value == value);
+                } else {
+                    refRules = refRules.filter((r) => r.value != value);
+                }
+                if (!refRules.length) {
+                    // this means this rule can never matched
+                    return [];
+                }
+                return refRules;
+            } else {
+                throw new Error(
+                    `Failed to produce residualRules for rule: ${rule.toJson()}`
+                );
+            }
+        });
+
+        return rules;
+    }
 }
 
 /**
@@ -933,7 +1514,7 @@ export default class OpaCompileResponseParser {
      * @type {RegoRule[]}
      * @memberof OpaCompileResponseParser
      */
-    public completeRules: RegoRule[] = [];
+    public originalRules: RegoRule[] = [];
 
     /**
      * Parsed, compressed & evaluated rules
@@ -942,6 +1523,18 @@ export default class OpaCompileResponseParser {
      * @memberof OpaCompileResponseParser
      */
     public rules: RegoRule[] = [];
+
+    /**
+     * Parsed, compressed & evaluated rule sets
+     *
+     * @type {RegoRuleSet[]}
+     * @memberof OpaCompileResponseParser
+     */
+    public ruleSets: {
+        [fullName: string]: RegoRuleSet;
+    } = {};
+
+    public queries: RegoExp[] = [];
 
     /**
      * A cache of all resolved rule result
@@ -956,6 +1549,27 @@ export default class OpaCompileResponseParser {
     } = {};
 
     /**
+     * The pseudo query rule name
+     * The parser will assign a random pseudo rule name to the query expressions you submit.
+     *
+     * @type {string}
+     * @memberof OpaCompileResponseParser
+     */
+    public readonly pseudoQueryRuleName: string =
+        RegoRule.randomRuleName("default_rule_");
+
+    private ruleDuplicationCheckCache: { [key: string]: Set<string> } = {};
+
+    private setQueryRuleResult(val: RegoValue) {
+        this.completeRuleResults[this.pseudoQueryRuleName] = {
+            fullName: this.pseudoQueryRuleName,
+            name: this.pseudoQueryRuleName,
+            value: val,
+            isCompleteEvaluated: true
+        };
+    }
+
+    /**
      * Parse OPA result Response
      *
      * @param {*} json
@@ -963,161 +1577,170 @@ export default class OpaCompileResponseParser {
      * @memberof OpaCompileResponseParser
      */
     parse(json: any): RegoRule[] {
-        if (isString(json)) {
+        if (_.isString(json)) {
             this.data = JSON.parse(json);
         } else {
             this.data = json;
         }
-        if (!this.data.result) {
+        /**
+         * OPA might output {"result": {}} as unconditional `false` or never matched
+         */
+        if (!this.data.result || !Object.keys(this.data.result).length) {
             // --- mean no rule matched
+            this.setQueryRuleResult(false);
             return [];
         }
-
         this.data = this.data.result;
-        const packages: any[] =
-            isArray(this.data.support) && this.data.support.length
-                ? this.data.support
-                : [];
-
-        if (isArray(this.data.queries) && this.data.queries.length) {
-            // --- create default query package for query body
-            const defaultQueryPackage = {
-                package: {
-                    path: [
-                        {
-                            type: "var",
-                            value: "query"
-                        }
-                    ]
-                },
-                rules: [] as any[]
-            };
-            this.data.queries.forEach((queryRuleBody: any) => {
-                if (!Array.isArray(queryRuleBody))
-                    throw new Error("Invalid response in `queries` section");
-                const defaultRule = {
-                    head: {
-                        name: "default",
-                        value: {
-                            type: "boolean",
-                            value: true
-                        }
-                    },
-                    body: queryRuleBody.length
-                        ? queryRuleBody
-                        : [
-                              {
-                                  index: 0,
-                                  terms: [
-                                      {
-                                          type: "boolean",
-                                          value: true
-                                      }
-                                  ]
-                              }
-                          ]
-                };
-                defaultQueryPackage.rules.push(defaultRule);
-            });
-            packages.push(defaultQueryPackage);
-        }
-        if (!packages.length) {
-            // --- mean no rule matched
+        if (
+            !this.data.queries ||
+            !_.isArray(this.data.queries) ||
+            !this.data.queries.length
+        ) {
+            this.setQueryRuleResult(false);
             return [];
         }
-        packages.forEach((p) => {
-            if (!isArray(p.rules) || !p.rules.length) return;
-            const packageName =
-                p.package && isArray(p.package.path)
-                    ? RegoRef.convertToFullRefString(p.package.path)
-                    : "";
 
-            const rules: any[] = p.rules;
-            rules.forEach((r) => {
-                const regoRule = RegoRule.parseFromData(r, packageName, this);
-                this.completeRules.push(regoRule);
-                // --- only save matched rules
-                if (!regoRule.isCompleteEvaluated) {
-                    this.rules.push(regoRule);
-                } else {
-                    if (regoRule.isMatched) {
-                        this.rules.push(regoRule);
-                    }
-                }
+        if (this.data.queries.findIndex((q: any) => !q?.length) !== -1) {
+            //  when query is always true, the "queries" value in the result will contain an empty array
+            this.setQueryRuleResult(true);
+            return [];
+        }
+
+        const queries: any[] = this.data.queries;
+
+        if (queries) {
+            if (
+                queries.findIndex(
+                    (ruleBody) => !ruleBody || !ruleBody.length
+                ) !== -1
+            ) {
+                // --- there is an empty array --- indicates unconditional matched
+                this.setQueryRuleResult(true);
+                return [];
+            }
+            queries.forEach((ruleBody: any, i: number) => {
+                const rule = new RegoRule({
+                    name: this.pseudoQueryRuleName,
+                    fullName: this.pseudoQueryRuleName,
+                    expressions: RegoRule.createExpressionsFromRuleBodyData(
+                        ruleBody,
+                        this
+                    ),
+                    isDefault: false,
+                    isCompleteEvaluated: false,
+                    value: true,
+                    parser: this
+                });
+                // this.originalRules.push(rule);
+                // this.rules.push(rule);
+                this.addRule(rule);
             });
-        });
-        this.calculateCompleteRuleResult();
-        this.reduceDependencies();
+        }
+
+        const packages: any[] = this.data.support;
+
+        if (packages) {
+            packages.forEach((p) => {
+                if (!_.isArray(p.rules) || !p.rules.length) return;
+                const packageName =
+                    p.package && _.isArray(p.package.path)
+                        ? RegoRef.convertToFullRefString(p.package.path)
+                        : "";
+
+                const rules: any[] = p.rules;
+                rules.forEach((r) => {
+                    const regoRule = RegoRule.parseFromData(
+                        r,
+                        packageName,
+                        this
+                    );
+                    //this.originalRules.push(regoRule);
+                    //this.rules.push(regoRule);
+                    this.addRule(regoRule);
+                });
+            });
+        }
+
+        this.ruleDuplicationCheckCache = {};
+
+        _.uniq(this.rules.map((r) => r.fullName)).forEach(
+            (fullName) =>
+                (this.ruleSets[fullName] = new RegoRuleSet(
+                    this,
+                    this.rules.filter((r) => r.fullName === fullName),
+                    fullName
+                ))
+        );
+
+        this.resolveAllRuleSets();
         return this.rules;
     }
 
-    /**
-     * Tried to merge rules outcome so that the ref value can be established easier
-     * After this step, any rules doesn't involve unknown should be merged to one value
-     * This will help to generate more concise query later
-     *
-     * Only for internal usage
-     *
-     * @private
-     * @memberof OpaCompileResponseParser
-     */
-    private calculateCompleteRuleResult() {
-        const fullNames = this.rules.map((r) => r.fullName);
-        fullNames.forEach((fullName) => {
-            const rules = this.rules.filter((r) => r.fullName === fullName);
-            const nonCompletedRules = rules.filter(
-                (r) => !r.isCompleteEvaluated
-            );
-            const completedRules = rules.filter((r) => r.isCompleteEvaluated);
-            const defaultRules = completedRules.filter((r) => r.isDefault);
-            const nonDefaultRules = completedRules.filter((r) => !r.isDefault);
-            if (nonDefaultRules.length) {
-                // --- if a non default complete eveluated rules exist
-                // --- it will be the final outcome
-                this.completeRuleResults[fullName] =
-                    this.createCompleteRuleResult(nonDefaultRules[0]);
-                return;
-            }
-            if (!nonCompletedRules.length) {
-                // --- if no unevaluated rule left, default rule value should be used
-                if (defaultRules.length) {
-                    this.completeRuleResults[fullName] =
-                        this.createCompleteRuleResult(defaultRules[0]);
-                    return;
-                } else {
-                    // --- no matched rule left; Not possible
-                    throw new Error(
-                        `Unexpected empty rule result for ${fullName}`
-                    );
-                }
-            } else {
-                // --- do nothing
-                // --- Some defaultRules might be able to strip out once
-                // --- nonCompletedRules are determined later
-                return;
-            }
-        });
+    addRule(rule: RegoRule) {
+        this.originalRules.push(rule);
+        if (rule.isImpossible()) {
+            return;
+        }
+        if (!this.ruleDuplicationCheckCache[rule.fullName]) {
+            this.ruleDuplicationCheckCache[rule.fullName] = new Set();
+        }
+        const setData = this.ruleDuplicationCheckCache[rule.fullName];
+        const { name, fullName, ...ruleData } = rule.toData();
+        const jsonData = JSON.stringify(ruleData);
+        const size = setData.size;
+        setData.add(jsonData);
+        if (size === setData.size) {
+            return;
+        }
+        this.rules.push(rule);
     }
 
-    /**
-     * Only for internal usage
-     *
-     * @returns
-     * @private
-     * @memberof OpaCompileResponseParser
-     */
-    private reduceDependencies() {
-        const rules = this.rules.filter((r) => !r.isCompleteEvaluated);
-        if (!rules.length) return;
-        for (let i = 0; i < rules.length; i++) {
-            const rule = rules[i];
-            rule.expressions = rule.expressions.map((e) => e.evaluate());
-            rule.evaluate();
+    isRefResolvable(fullName: string): boolean {
+        if (this.completeRuleResults[fullName]) {
+            return true;
         }
-        // --- unmatched non-default rule can be stripped out
-        this.rules = this.rules.filter(
-            (r) => !(r.isCompleteEvaluated && !r.isMatched && !r.isDefault)
-        );
+        const ruleSet = this.ruleSets[fullName];
+        if (!ruleSet) {
+            return false;
+        }
+        return ruleSet.isResolvable();
+    }
+
+    getRefValue(fullName: string): any {
+        const completeResult = this.completeRuleResults[fullName];
+        if (completeResult) {
+            return completeResult.value;
+        }
+        const ruleSet = this.ruleSets[fullName];
+        if (!ruleSet || !ruleSet.isResolvable()) {
+            return undefined;
+        }
+        return ruleSet.value;
+    }
+
+    private resolveAllRuleSets() {
+        while (true) {
+            const unresolvedSetsNum = Object.values(this.ruleSets).filter(
+                (rs) => !rs.isResolvable()
+            ).length;
+
+            if (!unresolvedSetsNum) {
+                break;
+            }
+
+            Object.values(this.ruleSets).forEach((rs) => rs.evaluate());
+
+            const newUnresolvedSetsNum = Object.values(this.ruleSets).filter(
+                (rs) => !rs.isResolvable()
+            ).length;
+
+            if (
+                !newUnresolvedSetsNum ||
+                newUnresolvedSetsNum >= unresolvedSetsNum
+            ) {
+                break;
+            }
+        }
     }
 
     /**
@@ -1127,50 +1750,40 @@ export default class OpaCompileResponseParser {
      * @returns {CompleteRuleResult}
      * @memberof OpaCompileResponseParser
      */
-    evaluateRule(fullName: string): CompleteRuleResult {
-        let rules = this.rules.filter((r) => r.fullName === fullName);
-        if (!rules.length) {
-            // --- no any rule matched; often (depends on your policy) it means a overall non-matched (false)
+    evaluateRule(fullName: string): CompleteRuleResult | null {
+        if (this.completeRuleResults[fullName]) {
+            return this.completeRuleResults[fullName];
+        }
+        const ruleSet = this.ruleSets[fullName];
+        if (!ruleSet) {
             return null;
         }
-
-        const defaultRule = rules.find((r) => r.isDefault);
-        const defaultValue = isUndefined(defaultRule)
-            ? undefined
-            : defaultRule.value;
-
-        // --- filter out default rules & unmatched
-        rules = rules.filter(
-            (r) => !r.isDefault && !(r.isCompleteEvaluated && !r.isMatched)
-        );
-
-        if (!rules.length) {
+        if (ruleSet.isResolvable()) {
             return {
                 fullName,
-                name: defaultRule ? defaultRule.name : "",
-                value: defaultValue,
-                isCompleteEvaluated: true,
-                residualRules: []
+                name: ruleSet.name,
+                value: ruleSet.value,
+                isCompleteEvaluated: true
+            };
+        } else {
+            return {
+                fullName,
+                name: ruleSet.name,
+                value: undefined,
+                isCompleteEvaluated: false,
+                residualRules: ruleSet.getResidualRules()
             };
         }
-
-        return {
-            fullName,
-            name: rules[0].name,
-            value: undefined,
-            isCompleteEvaluated: false,
-            residualRules: rules
-        };
     }
 
     /**
-     * Evaluate residual rules of compiled query
+     * Shortcut to evalute query result directly
      *
      * @returns {CompleteRuleResult}
      * @memberof OpaCompileResponseParser
      */
     evaluate(): CompleteRuleResult {
-        return this.evaluateRule("query.default");
+        return this.evaluateRule(this.pseudoQueryRuleName);
     }
 
     /**
@@ -1184,6 +1797,9 @@ export default class OpaCompileResponseParser {
         const result = this.evaluateRule(fullName);
         if (result === null) return "null";
         if (result.isCompleteEvaluated) {
+            if (typeof result.value === "undefined") {
+                return "undefined";
+            }
             return value2String(result.value);
         }
         let parts = result.residualRules.map((r) => r.toHumanReadableString());
@@ -1194,31 +1810,13 @@ export default class OpaCompileResponseParser {
     }
 
     /**
-     * Evaluate residual rules of compiled query as human readable string
+     * Shortcut to evalute query result directly and returned as human readable string
      *
      * @returns {string}
      * @memberof OpaCompileResponseParser
      */
-    evaluateAsHumanReadableString() {
-        return this.evaluateRuleAsHumanReadableString("query.default");
-    }
-
-    /**
-     * Only for internal usage
-     *
-     * @param {RegoRule} rule
-     * @returns {CompleteRuleResult}
-     * @private
-     * @memberof OpaCompileResponseParser
-     */
-    private createCompleteRuleResult(rule: RegoRule): CompleteRuleResult {
-        return {
-            fullName: rule.fullName,
-            name: rule.name,
-            value: rule.value,
-            isCompleteEvaluated: true,
-            residualRules: []
-        };
+    evaluateAsHumanReadableString(): string {
+        return this.evaluateRuleAsHumanReadableString(this.pseudoQueryRuleName);
     }
 
     reportWarns(msg: string) {

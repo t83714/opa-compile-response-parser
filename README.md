@@ -57,5 +57,5 @@ console.log(parser.evaluateAsHumanReadableString());
 
 ### Compatibility
 
-Work with Open Policy Agent version 0.11.0 or higher.
+Tested with Open Policy Agent version 0.37.2
 

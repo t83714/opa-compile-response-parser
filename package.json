@@ -1,6 +1,6 @@
 {
   "name": "opa-compile-response-parser",
-  "version": "1.0.4",
+  "version": "2.0.0",
   "private": true,
   "description": "An Open Policy Agent Compile Response Parser",
   "main": "./dist/cjs/index.js",
@@ -86,6 +86,7 @@
     "ts-node": "^10.9.1",
     "tsconfig-paths": "^4.1.0",
     "typedoc": "^0.22.18",
+    "tslib": "^2.3.1",
     "typescript": "~4.2.4"
   },
   "sideEffects": false,
