@@ -16,6 +16,7 @@ jobs:
       - run: yarn build
       - run: yarn start-es && yarn start-db && yarn start-opa && sleep 30s
       - run: yarn test
+      - run: yarn stop-es && yarn stop-db && yarn stop-opa
       - run: yarn eslint
 
       
