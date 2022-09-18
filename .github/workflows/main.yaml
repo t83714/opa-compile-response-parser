@@ -1,0 +1,20 @@
+name: Main CI Workflow
+
+on: push
+
+jobs:
+  build-test-eslint-node-14:
+    name: Build, Test & Eslint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Use Node.js 14
+        uses: actions/setup-node@v1
+        with:
+          node-version: 14
+      - run: yarn install
+      - run: yarn build
+      - run: yarn test
+      - run: yarn eslint
+
+      

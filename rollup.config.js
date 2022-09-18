@@ -1,15 +1,26 @@
 import typescript from "@rollup/plugin-typescript";
 import nodeResolve from "@rollup/plugin-node-resolve";
 import commonjs from "@rollup/plugin-commonjs";
+import path from "path";
 import pkg from "./package.json";
 import { terser } from "rollup-plugin-terser";
+import camelCase from "lodash/camelCase";
 
+const tsconfigPath = path.resolve(__dirname, "./tsconfig.json");
 const ensureArray = maybeArr =>
     Array.isArray(maybeArr) ? maybeArr : [maybeArr];
 
 const extensions = [".js"];
 const deps = Object.keys(pkg.dependencies || {});
 const peerDeps = Object.keys(pkg.peerDependencies || {});
+
+const umdExportName = (() => {
+    const pkgNameParts = pkg.name.split("/");
+    const pkgName = camelCase(
+        pkgNameParts.length > 1 ? pkgNameParts[1] : pkgNameParts[0]
+    );
+    return pkgName[0].toUpperCase() + pkgName.substring(1);
+})();
 
 const createConfig = ({
     input,
@@ -23,7 +34,8 @@ const createConfig = ({
         input: input ? input : "src/index.ts",
         output: ensureArray(output).map(format =>
             Object.assign({}, format, {
-                name: "opa-compile-response-parser",
+                // UMD global export name
+                name: umdExportName,
                 exports: "named"
             })
         ),
@@ -38,10 +50,8 @@ const createConfig = ({
         },
         plugins: [
             typescript({
-                compilerOptions:{
-                    ...tsOptions
-                }
-                
+                tsconfig: tsconfigPath,
+                ...tsOptions
             }),
             nodeResolve({
                 mainFields: ["main", "module", "jsnext:main"],
@@ -71,9 +81,6 @@ export default [
             format: "cjs",
             file: "dist/cjs/index.js"
         },
-        tsOptions: {
-            declarationDir: "./dist/cjs"
-        },
         external: "none"
     }),
     // --- ES Module
@@ -82,6 +89,9 @@ export default [
             format: "esm",
             file: "dist/esm/index.js"
         },
+        tsOptions: {
+            target: "es6"
+        },
         external: "none"
     }),
     // --- ES Module for Web Browser
@@ -89,6 +99,9 @@ export default [
         output: {
             format: "esm",
             file: "dist/mjs/index.mjs"
+        },
+        tsOptions: {
+            target: "es6"
         },
         external: "none",
         min: true

@@ -1,0 +1,54 @@
+name: Main CI Workflow
+
+on: 
+  push:
+    branches:
+      - main
+
+env:
+  DOCS_REPO_PATH: docs-repo
+  DOCS_BRANCH_NAME: gh-pages
+  DOCS_LOCAL_PATH: docs
+
+jobs:
+  build-test-eslint-node-14:
+    name: Build Docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Use Node.js 14
+        uses: actions/setup-node@v1
+        with:
+          node-version: 14
+      - run: yarn install
+      - run: yarn build
+      - run: yarn test
+      - run: yarn eslint
+
+      - name: checkout docs branch
+        uses: actions/checkout@v2
+        with:
+          repository: ${{ env.GITHUB_REPOSITORY }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: ${{ env.DOCS_REPO_PATH }}
+          ref: ${{ env.DOCS_BRANCH_NAME }}
+
+      - name: Update Docs
+        env:
+          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+        run: |
+          # Get repo info from env
+          owner=$(cut -d '/' -f 1 <<< "$GITHUB_REPOSITORY")
+          repo=$(cut -d '/' -f 2 <<< "$GITHUB_REPOSITORY") 
+          # build docs
+          yarn build-docs
+          # push to github page branch
+          cp --force -u -r ${DOCS_LOCAL_PATH}/* ${DOCS_REPO_PATH}/
+          rm -Rf ${DOCS_LOCAL_PATH}
+          pushd "${DOCS_REPO_PATH}" > /dev/null
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+          git add --all
+          git commit --message="auto update docs" --signoff
+          git push "https://x-access-token:$CR_TOKEN@github.com/${GITHUB_REPOSITORY}" ${DOCS_BRANCH_NAME}
+          popd > /dev/null
